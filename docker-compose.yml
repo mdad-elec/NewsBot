@@ -1,0 +1,83 @@
+version: '3'
+
+networks:
+  n8n_network:
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    restart: always
+    container_name: n8n
+    networks:
+      - n8n_network
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=my-playground.xyz
+      - N8N_PROTOCOL=http
+      - N8N_PORT=5678
+      - WEBHOOK_URL=https://my-playground.xyz/
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=yourpassword
+      - N8N_DIAGNOSTICS_ENABLED=false
+      # MongoDB connection string environment variable
+      - MONGODB_CONNECTION_STRING=mongodb://admin:password@mongodb:27017/NewsItems?authSource=admin
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - postgres
+      - mongodb
+      - qdrant   # ensure n8n waits for qdrant to be up
+
+  postgres:
+    image: postgres:13
+    container_name: postgres
+    restart: always
+    networks:
+      - n8n_network
+    environment:
+      - POSTGRES_USER=n8n
+      - POSTGRES_PASSWORD=yourpassword
+      - POSTGRES_DB=n8n
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  mongodb:
+    image: mongo:6
+    container_name: mongodb
+    restart: always
+    networks:
+      - n8n_network
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+      - MONGO_INITDB_DATABASE=NewsItems
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    restart: always
+    networks:
+      - n8n_network
+    ports:
+      - "6333:6333"  # REST API port
+      - "6334:6334"  # gRPC port (optional, only if you plan to use gRPC)
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+
+volumes:
+  n8n_data:
+  postgres_data:
+  mongodb_data:
+  qdrant_storage:
